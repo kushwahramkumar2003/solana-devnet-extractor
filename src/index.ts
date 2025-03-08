@@ -2,13 +2,15 @@ import * as web3 from "@solana/web3.js";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
+import bs58 from "bs58";
 
 // Load environment variables
 dotenv.config();
 
-// Check if running in an EC2 environment and set appropriate log path
-const isEC2 = process.env.EC2_ENVIRONMENT === "true";
-const logDir = isEC2 ? "/var/log/solana-airdrop" : "./logs";
+// Use a directory the user has access to
+const homeDir = os.homedir();
+const logDir = path.join(homeDir, "logs", "solana-airdrop");
 
 // Create log directory if it doesn't exist
 if (!fs.existsSync(logDir)) {
@@ -59,15 +61,22 @@ async function main() {
       throw new Error("WALLET_PRIVATE_KEY environment variable is not set");
     }
 
-    // Convert private key from base58 or JSON
+    // Convert private key from base58, base64 or JSON
     let privateKey: Uint8Array;
     try {
       // Check if it's a JSON key file content
       const jsonKey = JSON.parse(privateKeyString);
       privateKey = Uint8Array.from(jsonKey);
     } catch {
-      // Assume it's a base58 encoded private key
-      privateKey = Uint8Array.from(Buffer.from(privateKeyString, "base64"));
+      try {
+        // Try base64 decoding
+        privateKey = Uint8Array.from(Buffer.from(privateKeyString, "base64"));
+      } catch {
+        // Try base58 decoding as last resort
+        privateKey = web3.Keypair.fromSecretKey(
+          bs58.decode(privateKeyString)
+        ).secretKey;
+      }
     }
 
     // Create keypair from private key
@@ -85,6 +94,7 @@ async function main() {
     logger.log(`Wallet public key: ${publicKey.toString()}`);
     logger.log(`Airdrop interval: ${AIRDROP_INTERVAL_HOURS} hours`);
     logger.log(`Airdrop amount: ${AIRDROP_AMOUNT_SOL} SOL`);
+    logger.log(`Log directory: ${logDir}`);
 
     // Schedule airdrop
     scheduleAirdrop(connection, publicKey);
