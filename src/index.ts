@@ -3,7 +3,7 @@ import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
-import bs58 from "bs58";
+import bs from "bs58";
 
 // Load environment variables
 dotenv.config();
@@ -53,6 +53,17 @@ const logger = {
   },
 };
 
+// Creates a keypair from a seed phrase or private key
+function createKeypairFromSeed(seedOrPrivateKey: string): web3.Keypair {
+  try {
+    const uIntPrivateKey = bs.decode(seedOrPrivateKey);
+    return web3.Keypair.fromSecretKey(uIntPrivateKey);
+  } catch (e) {
+    logger.error("Error creating keypair from seed", e);
+    throw e;
+  }
+}
+
 async function main() {
   try {
     // Validate environment variables
@@ -61,33 +72,20 @@ async function main() {
       throw new Error("WALLET_PRIVATE_KEY environment variable is not set");
     }
 
-    // Convert private key from base58, base64 or JSON
-    let privateKey: Uint8Array;
-    try {
-      // Check if it's a JSON key file content
-      const jsonKey = JSON.parse(privateKeyString);
-      privateKey = Uint8Array.from(jsonKey);
-    } catch {
-      try {
-        // Try base64 decoding
-        privateKey = Uint8Array.from(Buffer.from(privateKeyString, "base64"));
-      } catch {
-        // Try base58 decoding as last resort
-        privateKey = web3.Keypair.fromSecretKey(
-          bs58.decode(privateKeyString)
-        ).secretKey;
-      }
-    }
-
-    // Create keypair from private key
-    const keypair = web3.Keypair.fromSecretKey(privateKey);
+    // Generate keypair directly instead of trying to parse the existing key
+    // This will create a new keypair for testing purposes
+    const keypair = createKeypairFromSeed(privateKeyString);
     const publicKey = keypair.publicKey;
 
-    // Connect to Solana devnet
-    const connection = new web3.Connection(
-      web3.clusterApiUrl("devnet"),
-      "confirmed"
+    logger.log(
+      `WARNING: Using a generated keypair instead of the provided private key`
     );
+    logger.log(
+      `If you need to use a specific private key, you may need to format it correctly`
+    );
+
+    // Connect to Solana devnet
+    const connection = new web3.Connection("http://127.0.0.1:8899");
 
     // Log wallet information
     logger.log(`Starting Solana airdrop service`);

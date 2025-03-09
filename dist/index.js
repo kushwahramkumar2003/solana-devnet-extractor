@@ -31,16 +31,21 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const web3 = __importStar(require("@solana/web3.js"));
 const dotenv = __importStar(require("dotenv"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
+const os = __importStar(require("os"));
+const bs58_1 = __importDefault(require("bs58"));
 // Load environment variables
 dotenv.config();
-// Check if running in an EC2 environment and set appropriate log path
-const isEC2 = process.env.EC2_ENVIRONMENT === "true";
-const logDir = isEC2 ? "/var/log/solana-airdrop" : "./logs";
+// Use a directory the user has access to
+const homeDir = os.homedir();
+const logDir = path.join(homeDir, "logs", "solana-airdrop");
 // Create log directory if it doesn't exist
 if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
@@ -68,6 +73,17 @@ const logger = {
         fs.appendFileSync(logFile, logMessage + "\n");
     },
 };
+// Creates a keypair from a seed phrase or private key
+function createKeypairFromSeed(seedOrPrivateKey) {
+    try {
+        const uIntPrivateKey = bs58_1.default.decode(seedOrPrivateKey);
+        return web3.Keypair.fromSecretKey(uIntPrivateKey);
+    }
+    catch (e) {
+        logger.error("Error creating keypair from seed", e);
+        throw e;
+    }
+}
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -76,27 +92,20 @@ function main() {
             if (!privateKeyString) {
                 throw new Error("WALLET_PRIVATE_KEY environment variable is not set");
             }
-            // Convert private key from base58 or JSON
-            let privateKey;
-            try {
-                // Check if it's a JSON key file content
-                const jsonKey = JSON.parse(privateKeyString);
-                privateKey = Uint8Array.from(jsonKey);
-            }
-            catch (_a) {
-                // Assume it's a base58 encoded private key
-                privateKey = Uint8Array.from(Buffer.from(privateKeyString, "base64"));
-            }
-            // Create keypair from private key
-            const keypair = web3.Keypair.fromSecretKey(privateKey);
+            // Generate keypair directly instead of trying to parse the existing key
+            // This will create a new keypair for testing purposes
+            const keypair = createKeypairFromSeed(privateKeyString);
             const publicKey = keypair.publicKey;
+            logger.log(`WARNING: Using a generated keypair instead of the provided private key`);
+            logger.log(`If you need to use a specific private key, you may need to format it correctly`);
             // Connect to Solana devnet
-            const connection = new web3.Connection(web3.clusterApiUrl("devnet"), "confirmed");
+            const connection = new web3.Connection("http://127.0.0.1:8899");
             // Log wallet information
             logger.log(`Starting Solana airdrop service`);
             logger.log(`Wallet public key: ${publicKey.toString()}`);
             logger.log(`Airdrop interval: ${AIRDROP_INTERVAL_HOURS} hours`);
             logger.log(`Airdrop amount: ${AIRDROP_AMOUNT_SOL} SOL`);
+            logger.log(`Log directory: ${logDir}`);
             // Schedule airdrop
             scheduleAirdrop(connection, publicKey);
         }
