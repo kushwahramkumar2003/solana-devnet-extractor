@@ -85,7 +85,10 @@ async function main() {
     );
 
     // Connect to Solana devnet
-    const connection = new web3.Connection("http://127.0.0.1:8899");
+    const connection = new web3.Connection(
+      web3.clusterApiUrl("devnet"),
+      "confirmed"
+    );
 
     // Log wallet information
     logger.log(`Starting Solana airdrop service`);
